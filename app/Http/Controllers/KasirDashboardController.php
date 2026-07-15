@@ -28,10 +28,10 @@ class KasirDashboardController extends Controller
             
         $totalPendapatanHariIni = $pendapatanSewaHariIni + $pendapatanFnbHariIni;
 
+        // Konsisten dengan modul SAW (maintenance/index): warning saat sisa umur <= 10% ambang batas
         $unitPerhatian = Perangkat::where(function($query) {
             $query->where('status', 'maintenance')
-                  // jam_terbang >= 90% ambang_batas, artinya sisa <= 10%
-                  ->orWhereRaw('jam_terbang_total >= (ambang_batas_servis * 0.9)');
+                  ->orWhereRaw('(ambang_batas_servis - jam_terbang_total) <= (ambang_batas_servis * 0.1)');
         })->get();
 
         return view('kasir.dashboard', compact(
@@ -43,23 +43,22 @@ class KasirDashboardController extends Controller
     {
         $request->validate([
             'id_perangkat' => 'required|exists:perangkat,id_perangkat',
+            'nama_pelanggan' => 'nullable|string|max:100',
             'tarif_per_jam' => 'required|numeric',
         ]);
 
         try {
             DB::transaction(function () use ($request) {
-                // LOCK BARIS PERANGKAT AGAR TIDAK BISA DIAKSES PROSES LAIN BERSAMAAN
-                $perangkat = Perangkat::where('id_perangkat', $request->id_perangkat)
-                                      ->lockForUpdate()
-                                      ->firstOrFail();
+                // Lock row supaya tidak ada request bersamaan yang lolos bareng (double booking)
+                $perangkat = Perangkat::where('id_perangkat', $request->id_perangkat)->lockForUpdate()->firstOrFail();
 
-                // GUARD EKSPLISIT: Pastikan benar-benar tersedia
                 if ($perangkat->status !== 'tersedia') {
-                    throw new \Exception('Unit sedang digunakan atau dalam perbaikan.');
+                    throw new \RuntimeException('Unit ini sedang tidak tersedia (sudah dipakai/maintenance).');
                 }
 
                 $perangkat->update(['status' => 'dipakai']);
 
+                // Create Transaksi Baru
                 TransaksiSewa::create([
                     'id_perangkat' => $perangkat->id_perangkat,
                     'id_user' => auth()->user()->id_user,
@@ -69,25 +68,25 @@ class KasirDashboardController extends Controller
                     'status_sesi' => 'berjalan'
                 ]);
             });
-            return redirect()->route('kasir.dashboard')->with('success', 'Sesi berhasil dimulai.');
-        } catch (\Exception $e) {
-            return redirect()->back()->withErrors($e->getMessage());
+        } catch (\RuntimeException $e) {
+            return redirect()->route('kasir.dashboard')->withErrors(['id_perangkat' => $e->getMessage()]);
         }
+
+        return redirect()->route('kasir.dashboard')->with('success', 'Sesi berhasil dimulai.');
     }
 
-    public function selesaiSesi(Request $request, $id_sewa)
+   public function selesaiSesi(Request $request, $id_sewa)
     {
         try {
             DB::transaction(function () use ($id_sewa) {
-                // LOCK BARIS TRANSAKSI
                 $sewa = TransaksiSewa::where('id_sewa', $id_sewa)->lockForUpdate()->firstOrFail();
-                
-                // GUARD: Cegah double click atau eksploitasi API
+
                 if ($sewa->status_sesi !== 'berjalan') {
-                    throw new \Exception('Sesi ini sudah diselesaikan atau dibatalkan sebelumnya.');
+                    throw new \RuntimeException('Sesi ini sudah diselesaikan sebelumnya.');
                 }
 
                 $waktuSelesai = now();
+
                 $durasiMenit = max(1, $sewa->waktu_mulai->diffInMinutes($waktuSelesai));
                 $totalBiaya = round(($durasiMenit / 60) * $sewa->tarif_per_jam, 2);
 
@@ -98,20 +97,20 @@ class KasirDashboardController extends Controller
                     'status_sesi' => 'selesai'
                 ]);
 
-                // Update Jam Terbang & Trigger Otomatis
-                $perangkat = Perangkat::where('id_perangkat', $sewa->id_perangkat)->lockForUpdate()->firstOrFail();
-                $durasiJam = ceil($durasiMenit / 60); 
-                
+                // SPRINT 3: Update Jam Terbang & Trigger Status Otomatis
+                $perangkat = Perangkat::findOrFail($sewa->id_perangkat);
+                $durasiJam = ceil($durasiMenit / 60);
+
                 $akumulasiJamBaru = $perangkat->jam_terbang_total + $durasiJam;
-                // FIX AMBANG BATAS: Hitung sisa berdasarkan persentase
-                $sisaUmurPersen = ($perangkat->ambang_batas_servis - $akumulasiJamBaru) / $perangkat->ambang_batas_servis;
-                
+                $sisaUmur = $perangkat->ambang_batas_servis - $akumulasiJamBaru;
+
                 $statusBaru = 'tersedia';
                 $riwayatKerusakan = $perangkat->riwayat_kerusakan;
 
-                if ($sisaUmurPersen <= 0) {
+                // Trigger kondisi: Jika sisa umur <= 0, otomatis maintenance
+                if ($sisaUmur <= 0) {
                     $statusBaru = 'maintenance';
-                    $riwayatKerusakan += 1; 
+                    $riwayatKerusakan += 1; // Tambah riwayat kerusakan untuk perhitungan SAW (C3)
                 }
 
                 $perangkat->update([
@@ -120,9 +119,10 @@ class KasirDashboardController extends Controller
                     'riwayat_kerusakan' => $riwayatKerusakan
                 ]);
             });
-            return redirect()->route('kasir.dashboard')->with('success', 'Sesi diselesaikan.');
-        } catch (\Exception $e) {
-            return redirect()->back()->withErrors($e->getMessage());
+        } catch (\RuntimeException $e) {
+            return redirect()->route('kasir.dashboard')->withErrors(['id_sewa' => $e->getMessage()]);
         }
+
+        return redirect()->route('kasir.dashboard')->with('success', 'Sesi diselesaikan. Status perangkat telah diperbarui otomatis.');
     }
 }

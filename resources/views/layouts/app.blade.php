@@ -51,18 +51,15 @@
         <div class="flex items-center gap-6">
             <h1 class="text-lg font-bold tracking-wider text-white">ARENA SYSTEM</h1>
             <div class="hidden md:flex gap-4 text-xs font-bold uppercase tracking-wider">
-                
                 @if(auth()->user()->role === 'owner')
-                    <a href="{{ route('owner.dashboard') }}" class="{{ request()->routeIs('owner.dashboard') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">Analytics</a>
-                    <a href="{{ route('maintenance.index') }}" class="{{ request()->routeIs('maintenance.*') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">Maintenance</a>
-                    <a href="{{ route('owner.fnb.index') }}" class="{{ request()->routeIs('owner.fnb.*') ? 'text-critical-red' : 'text-gray-400 hover:text-critical-red' }}">Admin F&B</a>
-                    <a href="{{ route('owner.users.index') }}" class="{{ request()->routeIs('owner.users.*') ? 'text-critical-red' : 'text-gray-400 hover:text-critical-red' }}">Kelola Akun</a>
+                    <a href="{{ route('owner.dashboard') }}" class="{{ request()->routeIs('owner.dashboard') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">Dashboard</a>
+                    <a href="{{ route('owner.fnb.index') }}" class="{{ request()->routeIs('owner.fnb.*') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">POS F&B</a>
+                    <a href="{{ route('owner.users.index') }}" class="{{ request()->routeIs('owner.users.*') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">Kelola Akun</a>
                 @else
-                    <a href="{{ route('kasir.dashboard') }}" class="{{ request()->routeIs('kasir.dashboard') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">Live Denah</a>
-                    <a href="{{ route('kasir.fnb.index') }}" class="{{ request()->routeIs('kasir.fnb.*') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">POS Kasir</a>
-                    <a href="{{ route('maintenance.index') }}" class="{{ request()->routeIs('maintenance.*') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">Maintenance</a>
+                    <a href="{{ route('kasir.dashboard') }}" class="{{ request()->routeIs('kasir.dashboard') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">Dashboard</a>
+                    <a href="{{ route('kasir.fnb.index') }}" class="{{ request()->routeIs('kasir.fnb.*') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">POS F&B</a>
                 @endif
-
+                <a href="{{ route('maintenance.index') }}" class="{{ request()->routeIs('maintenance.*') ? 'text-electric-blue' : 'text-gray-400 hover:text-white' }}">Maintenance</a>
             </div>
         </div>
         
@@ -93,6 +90,24 @@
         </div>
     </nav>
     @endauth
+
+    @if(session('success'))
+        <div class="max-w-[1600px] mx-auto px-6 pt-4">
+            <div class="bg-green-500/10 border border-green-500/40 text-green-400 text-xs font-medium px-4 py-3 rounded-lg">
+                {{ session('success') }}
+            </div>
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="max-w-[1600px] mx-auto px-6 pt-4">
+            <div class="bg-critical-red/10 border border-critical-red/40 text-red-300 text-xs font-medium px-4 py-3 rounded-lg space-y-1">
+                @foreach($errors->all() as $error)
+                    <p>⚠️ {{ $error }}</p>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     @yield('content')
 </body>

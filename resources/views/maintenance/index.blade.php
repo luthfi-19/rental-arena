@@ -34,6 +34,7 @@
                     <th class="p-4 border-b border-gray-800">Kerusakan (C3)</th>
                     <th class="p-4 border-b border-gray-800">Skor Akhir (V)</th>
                     <th class="p-4 border-b border-gray-800">Status</th>
+                    <th class="p-4 border-b border-gray-800 text-center">Aksi</th>
                 </tr>
             </thead>
             <tbody>
@@ -56,20 +57,35 @@
                     <td class="p-4 font-mono font-bold text-electric-blue text-lg">{{ $item['skor'] }}</td>
                     <td class="p-4">
                         @if($item['perangkat']->status === 'maintenance')
-                            <form action="{{ route('maintenance.selesai', $item['perangkat']->id_perangkat) }}" method="POST">
-                                @csrf
-                                <button type="submit" class="px-2 py-1 text-[10px] font-bold rounded bg-green-500 text-black uppercase hover:bg-green-400 transition cursor-pointer">
-                                    Selesai Servis
-                                </button>
-                            </form>
+                            <span class="px-2 py-1 text-[10px] font-bold rounded bg-critical-red/20 text-critical-red uppercase border border-critical-red/30">Offline</span>
                         @elseif($item['sisa_umur'] <= ($item['perangkat']->ambang_batas_servis * 0.1))
                             <span class="px-2 py-1 text-[10px] font-bold rounded bg-amber-500/20 text-amber-500 uppercase border border-amber-500/30">Warning</span>
                         @else
                             <span class="px-2 py-1 text-[10px] font-bold rounded bg-green-500/20 text-green-500 uppercase border border-green-500/30">Aman</span>
                         @endif
                     </td>
+                    <td class="p-4 text-center">
+                        @if($item['perangkat']->status === 'maintenance')
+                            <form action="{{ route('maintenance.selesai', $item['perangkat']->id_perangkat) }}" method="POST"
+                                onsubmit="return confirm('Tandai unit {{ $item['perangkat']->kode_unit }} sudah selesai diservis? Jam terbang akan direset ke 0 dan unit kembali bisa disewakan.');">
+                                @csrf
+                                <button type="submit" class="bg-green-600/10 border border-green-600 text-green-400 hover:bg-green-600 hover:text-white transition-all text-[10px] font-bold py-1.5 px-3 rounded uppercase tracking-wider whitespace-nowrap">
+                                    ✓ Selesai Servis
+                                </button>
+                            </form>
+                        @else
+                            <span class="text-[10px] text-gray-600 italic">—</span>
+                        @endif
+                    </td>
                 </tr>
                 @endforeach
+                @if($ranking->isEmpty())
+                <tr>
+                    <td colspan="8" class="p-6 text-center text-gray-400 text-sm">
+                        ✅ Semua unit dalam kondisi aman. Tidak ada unit yang perlu diprioritaskan servis saat ini.
+                    </td>
+                </tr>
+                @endif
             </tbody>
         </table>
     </div>
